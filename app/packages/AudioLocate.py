@@ -4,38 +4,43 @@ import sounddevice as sd
 
 
 class AudioLocate:
-    def __init__(self,amount=4,samples=44100):
-        self.amount = amount #amount of speakers
-        self.samples = samples #samples - simulate listening for 2 seconds at 22050KHz sample rate
-        self.sources = self.generateSource(self.amount)
-        self.mixed = self.mixIt()
+    amount: int
+    samples: int
+    recDuration: int
 
-    def generateSource(self,amount=4):
+    def __init__(self,amount:int = 4,samples: int = 44100) -> object:
+        self.amount = amount #amount of speakers
+        self.samples = samples #samples - simulate listening for 1 seconds at 44100KHz sample rate
+        self.sources = self.generate_source(self.amount)
+        self.mixed = self.mix()
+        self.recDuration = 2 # seconds (2 times the sample)
+
+    def generate_source(self, amount: int = 4) -> list:
         sources = []
         for i in range(amount):
             sources.append(np.random.randn(self.samples))
         return sources
 
-    def mixIt(self):
+    def mix(self) -> list:
         mix = np.zeros(self.samples)
         for i in self.sources:
             mix += 1 / self.amount * i
         return mix
 
-    def mixFail(self):
+    def mix_with_failure(self) -> None:
         import random
-        randFail = random.randint(0,self.amount-1)
+        rand_fail = random.randint(0,self.amount-1)
         counter = 0
         mix = np.zeros(self.samples)
         for i in self.sources:
-            if counter == randFail:
-                mix += 1 / self.amount * self.generateSource(1)[0]
+            if counter == rand_fail:
+                mix += 1 / self.amount * self.generate_source(1)[0]
             else:
                 mix += 1 / self.amount * i
             counter += 1
         self.mixed = mix
 
-    def mixShift(self,lower=10,upper=500):
+    def mix_shift(self, lower: int = 10, upper: int = 500) -> None:
         import random
         mix = np.zeros(self.samples)
         for i in self.sources:
@@ -43,7 +48,10 @@ class AudioLocate:
             mix += 1 / self.amount * np.roll(i,shift)
         self.mixed = mix
 
-    def mixShiftSpec(self,shift=-441,spec=1):
+    def mix_shift_spec(self, shift: int = -441, spec: int = 1) -> None:
+        """
+        :rtype: None
+        """
         # shift - shift random speaker by -441 samples (~3,43m) ?
         counter = 1
         mix = np.zeros(self.samples)
@@ -55,7 +63,7 @@ class AudioLocate:
             counter += 1
         self.mixed = mix
 
-    def autocorr(self):
+    def auto_cross_correlate(self) -> None:
         recorded = self.mixed
         corr = []
         for source in self.sources:
@@ -91,28 +99,35 @@ class AudioLocate:
             distance = delta*343
             self.locationValues.append((delta,distance))
 
-    def getValues(self):
-        return self.locationValues
-
-    def printValues(self):
+    def print_locations(self):
         for loc in self.locationValues:
             print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + "m entfernt.")
 
-    def playMix(self):
-        sd.play(self.mixed, self.samples)
+    def play_mix(self) -> None:
+        sd.play(self.mixed, self.samples, blocking=True)
 
-    def playSources(self):
+    def play_sources(self) -> None:
         for source in self.sources:
-            sd.play(source, self.samples)
+            sd.play(source, self.samples, blocking=True)
+
+    def set_rec_duration(self, duration: int) -> None:
+        self.recDuration = duration
+
+    def get_rec_duration(self) -> int:
+        return self.recDuration
+
+    def record(self) -> None:
+        duration = self.recDuration
+        self.myrecording = sd.rec(duration * self.samples, samplerate=self.samples, channels=1)
 
 
 if __name__ == "__main__":
     test = AudioLocate(4,samples=44100)
-    test.mixShift()
-    #test.mixShiftSpec(-4410,4) # Set a distance of 34.3m
+    test.mix_shift()
+    #test.mix_shift_spec(-4410,4) # Set a distance of 34.3m
 
-    #test.mixFail()
-    test.autocorr()
+    #test.mix_with_failiure()
+    test.auto_cross_correlate()
     test.show()
     test.calculate()
-    test.printValues()
+    test.print_locations()
