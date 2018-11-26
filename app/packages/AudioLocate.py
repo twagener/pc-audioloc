@@ -1,8 +1,9 @@
 from scipy import signal
 import numpy as np
+import sounddevice as sd
+
 
 class AudioLocate:
-
     def __init__(self,amount=4,samples=44100):
         self.amount = amount #amount of speakers
         self.samples = samples #samples - simulate listening for 2 seconds at 22050KHz sample rate
@@ -81,29 +82,6 @@ class AudioLocate:
         figure.tight_layout()
         figure.show()
 
-    def showDiff4(self):
-        import matplotlib.pyplot as plt
-        figure, (ax_mixed, *sourcePlots) = plt.subplots(self.amount + 1, 1)
-        ax_mixed.set_title('White noise')
-        ax_mixed.plot(self.mixed)
-        counter = 0
-        for i in range(self.amount):
-            counter += 1
-            sourcePlots[i].set_title('CrossCorr for ' + str(counter))
-            if counter == 1:
-                color = 'r'
-            elif counter == 2:
-                color = 'g'
-            elif counter == 3:
-                color = 'y'
-            elif counter == 4:
-                color = 'black'
-            else:
-                color = 'purple'
-            sourcePlots[i].plot(np.arange(-len(self.corr[i]) + self.samples, len(self.corr[i])), self.corr[i], color)
-        figure.tight_layout()
-        figure.show()
-
     def calculate(self):
         self.locationValues = []
         for i in range(len(self.corr)):
@@ -112,18 +90,24 @@ class AudioLocate:
             delta = (delayIndex-normSamples)/self.samples
             distance = delta*343
             self.locationValues.append((delta,distance))
-            #print("Delta t:" + str(delta) + "ms" + " und ist " + str(distance) + " entfernt.")
 
     def getValues(self):
+        return self.locationValues
+
+    def printValues(self):
         for loc in self.locationValues:
-            print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + " entfernt.")
+            print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + "m entfernt.")
 
+    def playMix(self):
+        sd.play(self.mixed, self.samples)
 
-
+    def playSources(self):
+        for source in self.sources:
+            sd.play(source, self.samples)
 
 
 if __name__ == "__main__":
-    test = AudioLocate(4,44100)
+    test = AudioLocate(4,samples=44100)
     test.mixShift()
     #test.mixShiftSpec(-4410,4) # Set a distance of 34.3m
 
@@ -131,4 +115,4 @@ if __name__ == "__main__":
     test.autocorr()
     test.show()
     test.calculate()
-    test.getValues()
+    test.printValues()
