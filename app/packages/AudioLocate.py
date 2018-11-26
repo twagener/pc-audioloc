@@ -6,14 +6,14 @@ import sounddevice as sd
 class AudioLocate:
     amount: int
     samples: int
-    recDuration: int
+    rec_duration: int
 
     def __init__(self,amount:int = 4,samples: int = 44100) -> object:
         self.amount = amount #amount of speakers
         self.samples = samples #samples - simulate listening for 1 seconds at 44100KHz sample rate
         self.sources = self.generate_source(self.amount)
         self.mixed = self.mix()
-        self.recDuration = 2 # seconds (2 times the sample)
+        self.rec_duration = 2 # seconds (2 times the sample)
 
     def generate_source(self, amount: int = 4) -> list:
         sources = []
@@ -75,49 +75,66 @@ class AudioLocate:
 
     def show(self):
         import matplotlib.pyplot as plt
-        figure, (ax_mixed, *sourcePlots) = plt.subplots(self.amount + 1, 1)
+        figure, (ax_mixed, *source_plots) = plt.subplots(self.amount + 1, 1)
         ax_mixed.set_title('White noise')
         ax_mixed.plot(self.mixed)
         counter = 0
         for i in range(self.amount):
             counter += 1
-            sourcePlots[i].set_title('CrossCorr for ' + str(counter))
+            source_plots[i].set_title('CrossCorr for ' + str(counter))
             if max(self.corr[i]) > self.samples/len(self.corr)-max(self.mixed)*100:
                 color = 'g'
             else:
                 color = 'r'
-            sourcePlots[i].plot(np.arange(-len(self.corr[i]) + self.samples, len(self.corr[i])), self.corr[i], color)
+            source_plots[i].plot(np.arange(-len(self.corr[i]) + self.samples, len(self.corr[i])), self.corr[i], color)
         figure.tight_layout()
         figure.show()
 
     def calculate(self):
-        self.locationValues = []
+        self.location_values = []
         for i in range(len(self.corr)):
-            delayIndex = np.argmax(self.corr[i])
+            delay_index = np.argmax(self.corr[i])
             normSamples=self.samples/2
-            delta = (delayIndex-normSamples)/self.samples
+            delta = (delay_index-normSamples)/self.samples
             distance = delta*343
-            self.locationValues.append((delta,distance))
+            self.location_values.append((delta, distance))
 
     def print_locations(self):
-        for loc in self.locationValues:
-            print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + "m entfernt.")
+        try:
+            for loc in self.location_values:
+                print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + "m entfernt.")
+        except AttributeError:
+            print("No values found for locations! Run calculate() first.")
 
     def play_mix(self) -> None:
+        """
+        Playing the mixed noise for debug purpose
+        """
         sd.play(self.mixed, self.samples, blocking=True)
 
     def play_sources(self) -> None:
+        """
+        Playing the source noise for debug purpose
+        """
         for source in self.sources:
             sd.play(source, self.samples, blocking=True)
 
     def set_rec_duration(self, duration: int) -> None:
-        self.recDuration = duration
+        """
+        Set the duration for recording in seconds
+        :param duration:
+        """
+        self.rec_duration = duration
 
     def get_rec_duration(self) -> int:
-        return self.recDuration
+        """
+        get the duration of recordings in seconds
+        :return:
+        """
+        return self.rec_duration
 
     def record(self) -> None:
-        duration = self.recDuration
+        duration = self.rec_duration
         self.myrecording = sd.rec(duration * self.samples, samplerate=self.samples, channels=1)
 
 

@@ -9,6 +9,8 @@ if __name__ == "__main__":
     # test.mix_with_failure()
     test.auto_cross_correlate()
     test.show()
-    # test.calculate()
+    test.calculate()
     # test.play_mix()
     # test.play_sources()
+    test.print_locations()
+
