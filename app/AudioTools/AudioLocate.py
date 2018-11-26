@@ -1,7 +1,7 @@
 from scipy import signal
 import numpy as np
 
-class AudioLoc:
+class AudioLocate:
 
     def __init__(self,amount=4,samples=44100):
         self.amount = amount #amount of speakers
@@ -46,13 +46,10 @@ class AudioLoc:
         # shift - shift random speaker by -441 samples (~3,43m) ?
         counter = 1
         mix = np.zeros(self.samples)
-        print(mix)
         for i in self.sources:
             if counter != spec:
-                print("no spec")
                 mix += 1 / self.amount * i
             else:
-                print("spec")
                 mix += 1 / self.amount * np.roll(i,shift)
             counter += 1
         self.mixed = mix
@@ -107,24 +104,31 @@ class AudioLoc:
         figure.tight_layout()
         figure.show()
 
-    def getDelays(self):
+    def calculate(self):
+        self.locationValues = []
         for i in range(len(self.corr)):
             delayIndex = np.argmax(self.corr[i])
             normSamples=self.samples/2
             delta = (delayIndex-normSamples)/self.samples
             distance = delta*343
-            print("Delta t:" + str(delta) + "ms" + " und ist " + str(distance) + " entfernt.")
+            self.locationValues.append((delta,distance))
+            #print("Delta t:" + str(delta) + "ms" + " und ist " + str(distance) + " entfernt.")
+
+    def getValues(self):
+        for loc in self.locationValues:
+            print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + " entfernt.")
 
 
 
 
 
 if __name__ == "__main__":
-    test = AudioLoc(4,44100)
-    #test.mixShift()
-    test.mixShiftSpec(-4410,4) # Set a distance of 34.3m
+    test = AudioLocate(4,44100)
+    test.mixShift()
+    #test.mixShiftSpec(-4410,4) # Set a distance of 34.3m
 
     #test.mixFail()
     test.autocorr()
     test.show()
-    test.getDelays()
+    test.calculate()
+    test.getValues()
