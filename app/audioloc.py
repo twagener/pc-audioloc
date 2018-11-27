@@ -2,6 +2,7 @@ from packages import AudioLocate
 
 if __name__ == "__main__":
     test = AudioLocate(4, 44100)
+    test.mix_hdmi()
     test.fake_input_shift()
     #test.mix_shift_spec(-4410, 4)  # Set a distance of 34.3m
 

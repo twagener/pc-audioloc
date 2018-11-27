@@ -16,6 +16,7 @@ class AudioLocate:
         self.rec_duration = 2  # seconds (2 times the sample)
         self.recorded = self.fake_input()
         self.__correlation = None
+        self.__output_device = None
 
     def generate_source(self, amount: int = 4) -> list:
         sources = []
@@ -31,6 +32,59 @@ class AudioLocate:
             mix = np.vstack((mix, source))
             # mix.append(source)
         return mix
+
+    def mix_hdmi(self) -> object:
+        """
+        MP3/WAV/FLAC datastream
+            0		Front Left
+            1		Front Right
+            2		Center
+            3		Subwoofer Freque
+            4		Rear Left
+            5		Rear Right
+            6		Alternative Rear Left
+            7		Alternative Rear Right
+
+        DTS/AAC
+            1	Front Left
+            2	Front Right
+            0	Center
+            5	Subwoofer Freque
+            3	Rear Left
+            4	Rear Right
+            6	Alternative Rear Left
+            7	Alternative Rear Right
+        :return:
+        """
+        if self.amount == 4:
+            for i in range(self.amount):
+                mix = self.sources[0]
+                mix = np.vstack((mix, self.sources[1]))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+                mix = np.vstack((mix, self.sources[2]))
+                mix = np.vstack((mix, self.sources[3]))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+        elif self.amount == 6:
+            for i in range(self.amount):
+                mix = self.sources[0]
+                mix = np.vstack((mix, self.sources[1]))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+                mix = np.vstack((mix, np.zeros(self.samples)))
+                mix = np.vstack((mix, self.sources[2]))
+                mix = np.vstack((mix, self.sources[3]))
+                mix = np.vstack((mix, self.sources[4]))
+                mix = np.vstack((mix, self.sources[5]))
+        else:
+            raise ValueError
+        self.mixed = mix
+
+    def mix_mono(self) -> list:
+        mix = np.zeros(self.samples)
+        for i in self.sources:
+            mix += 1 / self.amount * i
+        self.mixed = mix
 
     def fake_input(self) -> list:
         mix = np.zeros(self.samples)
@@ -134,12 +188,10 @@ class AudioLocate:
         Playing the mixed noise for debug purpose
         """
         try:
-            sd.play(self.mixed.T, self.samples, device=2, blocking=True) # NEEDED TO TRANSFORM
+            sd.play(self.mixed.T, self.samples, device=self.__output_device, blocking=True) # NEEDED TO TRANSFORM
         except (sd.PortAudioError) as err:
-            print("something went wrong!",err," Check your output settings.")
+            print("something went wrong!",err," Check your output settings and set_output_device()")
             print("\n",self.get_devices())
-            #print(sd.default.device)
-            #print(sd.check_output_settings(device=2))
             print(self.mixed.shape)
 
     def play_sources(self) -> None:
@@ -148,6 +200,15 @@ class AudioLocate:
         """
         for source in self.sources:
             sd.play(source, self.samples, blocking=True)
+
+    def set_output_device(self,output_device: int) -> None:
+        """
+        Set the output device
+        Get a list from get_devices()
+        :int output_device:
+        :return:
+        """
+        self.__output_device = output_device
 
     def set_rec_duration(self, duration: int) -> None:
         """
