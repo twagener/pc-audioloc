@@ -2,6 +2,7 @@ import time
 
 from scipy import signal
 import numpy as np
+#import sympy as sp
 import sounddevice as sd
 import queue
 
@@ -16,10 +17,10 @@ class AudioLocate:
 
     def __init__(self, channels: int = 4, samplerate: int = 44100, duration: int = 1) -> object:
         self.__channels = channels  # amount of speakers
-        self.__duration = duration
+        self.__duration = duration # duration of noise playback
         self.__samplerate = samplerate # samples - simulate listening for 1 seconds at 44100KHz sample rate
         self.__samples = samplerate * self.__duration
-        self.__sources = self.generate_source(self.__channels)
+        self.__sources = self.generate_source(self.__channels) # generate n noise channels
         self.__mixed = self.mix()
         self.__recorded = None
         self.__correlation = None
@@ -41,7 +42,7 @@ class AudioLocate:
         mix = self.__sources[0]
         next(sources)
         for source in sources:
-            mix = np.vstack((mix, source))
+            mix = np.vstack((mix, source)) # each array shape represents one channel => 4 channels = 4,1 array-shape
             # mix.append(source)
         return mix
 
@@ -104,7 +105,7 @@ class AudioLocate:
         mix = np.zeros(self.__samples)
         for i in self.__sources:
             mix += 1 / self.__channels * i
-        return mix
+        self.__recorded = np.vstack((mix))
 
     def fake_input_with_failure(self) -> None:
         import random
@@ -117,7 +118,7 @@ class AudioLocate:
             else:
                 mix += 1 / self.__channels * i
             counter += 1
-        self.__recorded = mix.T
+        self.__recorded = np.vstack((mix))
 
     def fake_input_shift(self, lower: int = 10, upper: int = 500) -> None:
         import random
@@ -125,13 +126,13 @@ class AudioLocate:
         for source in self.__sources:
             shift = random.randint(-upper, -lower)
             mix += 1 / self.__channels * np.roll(source, shift)
-        self.__recorded = mix.T
+        self.__recorded = np.vstack((mix))
 
-    def fake_input_shift_spec(self, shift: int = -441, spec: int = 1) -> None:
+    def fake_input_shift_spec(self, shift: int = 441, spec: int = 1) -> None:
         """
         :rtype: None
         """
-        # shift - shift random speaker by -441 samples (~3,43m) ?
+        # shift - shift random speaker by 441 samples (~3,43m) ?
         counter = 1
         mix = np.zeros(self.__samples)
         for source in self.__sources:
@@ -140,7 +141,20 @@ class AudioLocate:
             else:
                 mix += 1 / self.__channels * np.roll(source, shift)
             counter += 1
-        self.__recorded = mix
+        self.__recorded = np.vstack((mix))
+
+
+    ### FAKE OUTPUT
+
+    @staticmethod
+    def fake_output_times(x: int = 0, y: int = 0) -> tuple:
+        t0 = 0
+        t1 = 1
+        t2 = 1
+        t3 = 1
+
+        return (t0,t1,t2,t3)
+
 
     ############# Do the math ###############
 
@@ -163,23 +177,30 @@ class AudioLocate:
 
     def show(self) -> None:
         import matplotlib.pyplot as plt
-        figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
-        ax_mixed.set_title('Recorded noise')
-        ax_mixed.plot(self.__recorded)
-        counter = 0
-        for i in range(self.__channels * self.__input_channels):
-            counter += 1
-            source_plots[i].set_title('Cross correlation for source number ' + str(counter))
-            #source_plots[i].set_xlim([200000,210000])
-#            if max(self.__correlation[i]) > self.__samples / len(self.__correlation) - max(self.__recorded) * 100:
-#                color = 'g'
-#            else:
-#                color = 'r'
-            color = 'r'
-            source_plots[i].plot(np.arange(-len(self.__correlation[i]) + self.__samples,
-                                           len(self.__correlation[i])), self.__correlation[i], color)
-        figure.tight_layout()
-        figure.show()
+        try:
+            figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
+            ax_mixed.set_title('Recorded noise')
+            ax_mixed.plot(self.__recorded)
+            counter = 0
+        except:
+            print("No recording found!")
+
+        try:
+            for i in range(self.__channels * self.__input_channels):
+                counter += 1
+                source_plots[i].set_title('Cross correlation for source channel ' + str(counter))
+                #source_plots[i].set_xlim([200000,210000])
+    #            if max(self.__correlation[i]) > self.__samples / len(self.__correlation) - max(self.__recorded) * 100:
+    #                color = 'g'
+    #            else:
+    #                color = 'r'
+                color = 'r'
+                source_plots[i].plot(np.arange(-len(self.__correlation[i]) + self.__samples,
+                                               len(self.__correlation[i])), self.__correlation[i], color)
+            figure.tight_layout()
+            figure.show()
+        except:
+            print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
     def calculate(self) -> None:
         self.location_values = []
@@ -187,6 +208,7 @@ class AudioLocate:
         system_delta = np.argwhere(self.__recorded > 0.01)[0][0]/self.__samplerate
         delay_index = []
         delay = []
+
         try:
             for i in range(len(self.__correlation)):
                 delay_index.append((i,np.argmax(self.__correlation[i])))
@@ -197,24 +219,31 @@ class AudioLocate:
                 #delta = (delay_index - norm_samples) / self.__samples
                 #delta = self.__t_start
                 #distance = delta * 343
+                minDelay = max(delay)
+                delays = []
+                for i in delay:
+                    delays.append(minDelay - i)
+            print(delays)
+            for i in delays:
+                # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
+                print(str(((i / self.__samplerate)) * 343) + "m")
         except TypeError:
-            print("No values to calculate! Please run auto_cross_correlate() before.")
+            print("No values to calculate()! Please run auto_cross_correlate() before.")
 
-        minDelay = max(delay)
-        delays = []
-        for i in delay:
-            delays.append(minDelay-i)
 
-        for i in delays:
-            #print(str(((i/self.__samplerate)+system_delta)*343)+"m")
-            print(str(((i / self.__samplerate)) * 343) + "m")
 
     def print_locations(self):
         try:
+            from sympy.geometry import Circle,intersection
             for loc in self.location_values:
                 print("Delta t:" + str(loc[0]) + "ms" + " und ist " + str(loc[1]) + "m entfernt.")
+                c0 = Circle((0,0), loc[0])
+                c1 = Circle((0, 0), loc[1])
+                c2 = Circle((0, 0), loc[2])
+                c3 = Circle((0, 0), loc[3])
+                print(intersection(c1,c2,c3))
         except AttributeError:
-            print("No values found for locations! Run calculate() first.")
+            print("No values found for print_locations()! Run calculate() first.")
 
     ############# Playback and recording ###############
 
