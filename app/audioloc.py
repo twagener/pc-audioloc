@@ -13,15 +13,16 @@ if __name__ == "__main__":
     #locator.play_mix()
     #locator.play_recorded()
 
-    locator.fake_input_shift()
+    locator.fake_recording_pos()
     #locator.fake_input_shift_spec(+4410, 4)  # Set a distance of 34.3m
     #locator.fake_input()
+    locator.fake_pos()
 
 
     #locator.play_sources()
 
-    locator.auto_cross_correlate()
-    locator.calculate()
-    locator.show()
-    locator.print_locations()
+    #locator.auto_cross_correlate()
+    #locator.calculate()
+    #locator.show()
+    #locator.print_locations()
 

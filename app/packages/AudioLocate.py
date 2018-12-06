@@ -13,8 +13,6 @@ class AudioLocate:
     __samples: int
     __duration: int
 
-    q = queue.Queue()
-
     def __init__(self, channels: int = 4, samplerate: int = 44100, duration: int = 1) -> object:
         self.__channels = channels  # amount of speakers
         self.__duration = duration # duration of noise playback
@@ -27,6 +25,8 @@ class AudioLocate:
         self.__output_device = None
         self.__input_channels = 1
         self.__input_device = None
+        self.__speaker_locations = np.array()
+
 
     ############# Generate noises ###############
 
@@ -100,49 +100,25 @@ class AudioLocate:
         self.__mixed = mix
 
     ############# Fake stuff for debugging ###############
+    def fake_pos(self,x:int = 0,y: int = 0):
+        try:
+            xy = [x,y]
+            self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
+            return True
+        except:
+            print("No speaker locations found! Please run set_speaker_locations() before")
+            return False
 
-    def fake_input(self) -> list:
-        mix = np.zeros(self.__samples)
-        for i in self.__sources:
-            mix += 1 / self.__channels * i
-        self.__recorded = np.vstack((mix))
-
-    def fake_input_with_failure(self) -> None:
-        import random
-        rand_fail = random.randint(0, self.__channels - 1)
-        counter = 0
-        mix = np.zeros(self.__samples)
-        for i in self.__sources:
-            if counter == rand_fail:
-                mix += 1 / self.__channels * self.generate_source(1)[0]
-            else:
-                mix += 1 / self.__channels * i
-            counter += 1
-        self.__recorded = np.vstack((mix))
-
-    def fake_input_shift(self, lower: int = 10, upper: int = 500) -> None:
-        import random
-        mix = np.zeros(self.__samples)
-        for source in self.__sources:
-            shift = random.randint(-upper, -lower)
-            mix += 1 / self.__channels * np.roll(source, shift)
-        self.__recorded = np.vstack((mix))
-
-    def fake_input_shift_spec(self, shift: int = 441, spec: int = 1) -> None:
-        """
-        :rtype: None
-        """
-        # shift - shift random speaker by 441 samples (~3,43m) ?
-        counter = 1
-        mix = np.zeros(self.__samples)
-        for source in self.__sources:
-            if counter != spec:
-                mix += 1 / self.__channels * source
-            else:
+    def fake_recording_pos(self,x: int = 5,y: int = 5) -> bool:
+        if x > 0 and y > 0:
+            mix = np.zeros(self.__samples)
+            for source in self.__sources:
+                shift = 10
                 mix += 1 / self.__channels * np.roll(source, shift)
-            counter += 1
-        self.__recorded = np.vstack((mix))
-
+            self.__recorded = np.vstack((mix))
+            return True
+        else:
+            return False
 
     ### FAKE OUTPUT
 
@@ -354,6 +330,9 @@ class AudioLocate:
         :return:
         """
         return self.__samples/self.__samplerate
+
+    def set_speaker_locations(self,x1,y1):
+        pass
 
 
 
