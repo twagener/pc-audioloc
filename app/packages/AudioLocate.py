@@ -25,7 +25,6 @@ class AudioLocate:
         self.__output_device = None
         self.__input_channels = 1
         self.__input_device = None
-        self.__speaker_locations = np.array()
 
 
     ############# Generate noises ###############
@@ -104,6 +103,7 @@ class AudioLocate:
         try:
             xy = [x,y]
             self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
+            print(self.__distances)
             return True
         except:
             print("No speaker locations found! Please run set_speaker_locations() before")
@@ -331,8 +331,18 @@ class AudioLocate:
         """
         return self.__samples/self.__samplerate
 
-    def set_speaker_locations(self,x1,y1):
-        pass
+    def set_speaker_locations(self,*positions: tuple) -> None:
+        if len(positions) != self.__channels:
+            raise ValueError("Got "+str(len(positions))+" positions but there are "+str(self.__channels)+" speakers.")
+        else:
+            positionList = []
+            for pos in positions:
+                if type(pos) != tuple:
+                    raise ValueError("Need tuples for positions - eg. (x1,y1),(x2,y2). "
+                                     "First value should be (0,0)!")
+                else:
+                    positionList.append(pos)
+            self.__speaker_locations = np.array(positionList)
 
 
 

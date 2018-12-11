@@ -16,6 +16,7 @@ if __name__ == "__main__":
     locator.fake_recording_pos()
     #locator.fake_input_shift_spec(+4410, 4)  # Set a distance of 34.3m
     #locator.fake_input()
+    locator.set_speaker_locations((0,0),(0,8),(4,8))
     locator.fake_pos()
 
 
