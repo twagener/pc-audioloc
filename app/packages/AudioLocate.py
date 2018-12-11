@@ -176,7 +176,7 @@ class AudioLocate:
         try:
             figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
             ax_mixed.set_title('Recorded noise')
-            ax_mixed.plot(self.__recorded)
+            ax_mixed.plot(self.__input_stream[-1])
             counter = 0
         except:
             print("No recording found!")
@@ -198,31 +198,32 @@ class AudioLocate:
         except:
             print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
-    def calculate_old(self) -> None:
-        self.__location_values = []
-        # seconds before the first sound arrives
-        system_delta = np.argwhere(self.__recorded > 0.01)[0][0]/self.__samplerate
-        delay_index = []
-        delay = []
+    def __show(self) -> None:
+        import matplotlib.pyplot as plt
         try:
-            for i in range(len(self.__correlation)):
-                delay_index.append((i,np.argmax(self.__correlation[i])))
-                delay.append(np.argmax(self.__correlation[i]))
-                #delay_index_noise = np.argmax(self.__recorded)
-                #norm_samples = self.__samples / 2
-                #print(self.__t_start)
-                #delta = (delay_index - norm_samples) / self.__samples
-                #delta = self.__t_start
-                #distance = delta * 343
-                minDelay = max(delay)
-                delays = []
-                for i in delay:
-                    delays.append(minDelay - i)
-            for i in delays:
-                # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
-                print(str(((i / self.__samplerate)) * 343) + "m")
-        except TypeError:
-            print("No values to calculate()! Please run auto_cross_correlate() before.")
+            figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
+            ax_mixed.set_title('Recorded noise')
+            ax_mixed.plot(self.__recorded)
+            counter = 0
+        except:
+            print("No recording found!")
+
+        try:
+            for i in range(self.__channels * self.__input_channels):
+                counter += 1
+                source_plots[i].set_title('Cross correlation for source channel ' + str(counter))
+                #source_plots[i].set_xlim([200000,210000])
+    #            if max(self.__correlation[i]) > self.__samples / len(self.__correlation) - max(self.__recorded) * 100:
+    #                color = 'g'
+    #            else:
+    #                color = 'r'
+                color = 'r'
+                source_plots[i].plot(np.arange(-len(self.__correlation[i]) + self.__samples,
+                                               len(self.__correlation[i])), self.__correlation[i], color)
+            figure.tight_layout()
+            figure.show()
+        except:
+            print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
     def calculate(self,show: bool = False) -> None:
         self.__location_values = []
@@ -261,33 +262,12 @@ class AudioLocate:
                 self.__distances = [x*343/self.__duration for x in delay]
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
+        self.show()
 
     ############# Playback and recording ###############
 
     def get_devices(self):
         return sd.query_devices()
-
-    def play_mono_mix(self) -> None:
-        """
-        Playing the mixed noise for debug purpose
-        """
-        sd.play(self.__mixed, self.__samples, blocking=True)
-
-    def play_mix(self,loop=True) -> None:
-        q = queue.Queue()
-        """
-        Playing the mixed noise for debug purpose
-        """
-        try:
-            #self.__play_start = int(time.time())
-            while loop:
-                print("Playing..")
-                sd.play(self.__mixed.T, self.__samplerate, device=self.__output_device, loop=loop, blocking=True)  # NEEDED TO TRANSFORM
-                print(". play done.")
-        except (sd.PortAudioError) as err:
-            print("Something went wrong!", err, "- Check your output settings and set_output_device()")
-            print("\nAvailable devices:", self.get_devices())
-            print(self.__mixed.shape)
 
     def playrec(self) -> None:
         try:
@@ -304,7 +284,7 @@ class AudioLocate:
             print(self.__mixed.shape)
         sd.wait()
 
-    def startAudio(self):
+    def start_audio_analyses(self):
         self.__play_thread()
         self.__rec_thread()
 
@@ -338,9 +318,8 @@ class AudioLocate:
             Playing the mixed noise in a loop
             """
             try:
-                # self.__play_start = int(time.time())
                 print("Playing loop..")
-                sd.play(self.__mixed.T, self.__samplerate, device=self.__output_device, loop=True)  # NEEDED TO TRANSFORM
+                sd.play(self.__mixed.T, self.__samplerate, device=self.__output_device, loop=True)
             except (sd.PortAudioError) as err:
                 print("Something went wrong!", err, "- Check your output settings and set_output_device()")
                 print("\nAvailable devices:", self.get_devices())
@@ -348,22 +327,24 @@ class AudioLocate:
         except KeyboardInterrupt:
             print('\nPlaying finished... ')
 
+    ##### DEBUG STUFF
 
-    def rec(self) -> None:
+    def play_mono_mix(self) -> None:
+        """
+        Playing the mixed noise for debug purpose
+        """
+        sd.play(self.__mixed, self.__samples, blocking=True)
+
+    def play_mix(self) -> None:
+        """
+        Playing the mixed noise for debug purpose
+        """
         try:
-            print("Recording..")
-            self.__rec_start = int(time.time())
-
-            self.__recorded = sd.rec(self.__samplerate, device=self.__input_device, channels=self.__input_channels)
-
-            self.__rec_stop = int(time.time())
-            self.__rec_delta = int(time.time()) - self.__rec_start
-            print(". rec done.")
+            sd.play(self.__mixed.T, self.__samplerate, device=self.__output_device, blocking=True)  # NEEDED TO TRANSFORM
         except (sd.PortAudioError) as err:
             print("Something went wrong!", err, "- Check your output settings and set_output_device()")
             print("\nAvailable devices:", self.get_devices())
             print(self.__mixed.shape)
-
 
     def play_sources(self) -> None:
         """
@@ -378,6 +359,8 @@ class AudioLocate:
         """
         for source in self.__recorded.T:
             sd.play(source, self.__samplerate, blocking=True)
+
+    ##### SETTER
 
     def set_output_device(self, output_device: int) -> None:
         """
@@ -431,6 +414,8 @@ class AudioLocate:
                 else:
                     positionList.append(pos)
             self.__speaker_locations = np.array(positionList)
+
+    ##### GETTER
 
     def get_distances(self) -> list:
         try:

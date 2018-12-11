@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     #locator.rec()
     #locator.play_mix()
-    locator.startAudio()
+    locator.start_audio_analyses()
 
     print(len(locator.get_input_stream()))
     #locator.play_recorded()
