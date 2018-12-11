@@ -4,7 +4,7 @@ from scipy import signal
 import numpy as np
 #import sympy as sp
 import sounddevice as sd
-import queue,os
+import queue,threading
 
 class AudioLocate:
     __input_channels: int
