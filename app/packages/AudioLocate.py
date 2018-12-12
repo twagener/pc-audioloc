@@ -13,6 +13,7 @@ class AudioLocate:
     __duration: int
 
     def __init__(self, channels: int = 4, samplerate: int = 44100, duration: int = 1) -> object:
+        self.__chunks = 10
         self.__output_stream = []
         self.__input_stream = []
         self.__blocksize = 2048
@@ -35,7 +36,7 @@ class AudioLocate:
     def generate_source(self, amount: int = 4) -> list:
         sources = []
         for i in range(amount):
-            patched = np.tile(np.random.randn(self.__samplerate),self.__duration)
+            patched = np.tile(np.random.randn(int(self.__samplerate/self.__chunks)),self.__duration*self.__chunks)
             sources.append(patched)
         return sources
 
@@ -114,18 +115,19 @@ class AudioLocate:
             return False
 
     def fake_recording_pos(self) -> bool:
-        try:
-            delays = [int(x/343*self.__samplerate) for x in self.__distances]
-            mix = np.zeros(self.__samples)
-            i = 0
-            for source in self.__sources:
-                mix += 1 / self.__channels * np.roll(source, delays[i])
-                i += 1
-            self.__recorded = np.vstack((mix))
-            return True
-        except:
-            print("Failed")
-            return False
+        #try:
+        delays = [int(x/343*self.__samplerate) for x in self.__distances]
+        mix = np.zeros(self.__samples)
+        i = 0
+        for source in self.__sources:
+            mix += 1 / self.__channels * np.roll(source, delays[i])
+            i += 1
+        self.__recorded = np.vstack((mix))
+
+        #    return True
+        #except:
+        #    print("Failed")
+        #    return False
 
     ### FAKE OUTPUT
 
@@ -176,7 +178,7 @@ class AudioLocate:
         try:
             figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
             ax_mixed.set_title('Recorded noise')
-            ax_mixed.plot(self.__input_stream[-1])
+            ax_mixed.plot(self.__recorded)
             counter = 0
         except:
             print("No recording found!")
@@ -370,7 +372,6 @@ class AudioLocate:
         except (sd.PortAudioError) as err:
             print("Something went wrong!", err, "- Check your output settings and set_output_device()")
             print("\nAvailable devices:", self.get_devices())
-            print(self.__mixed.shape)
 
     def play_sources(self) -> None:
         """
