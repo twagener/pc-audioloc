@@ -225,44 +225,70 @@ class AudioLocate:
         except:
             print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
-    def calculate(self,show: bool = False) -> None:
+    def calculate(self,show: bool = False, t0: int = None) -> None:
         self.__location_values = []
         delay_index = []
         delay = []
         try:
-            for i in range(len(self.__correlation)):
-                value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
-                delay_index.append((i,value))
-                delay.append(value)
-            if show:
-                for i in delay:
-                    print(str((i) * 343 / self.__duration) + "m")
-                    self.__distances = [x * 343 / self.__duration for x in delay]
+            if t0 != None:
+                # t0 is not included right now. but has to!
+                for i in range(len(self.__correlation)):
+                    value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
+                    delay_index.append((i,value))
+                    delay.append(value)
+                if show:
+                    for i in delay:
+                        print(str((i) * 343 / self.__duration) + "m")
+                        self.__distances = [x * 343 / self.__duration for x in delay]
+                else:
+                    self.__distances = [x*343/self.__duration for x in delay]
             else:
-                self.__distances = [x*343/self.__duration for x in delay]
+                # t0 is set to the speaker, who gets a signal first
+                for i in range(len(self.__correlation)):
+                    delay_index.append((i, np.argmax(self.__correlation[i])))
+                    delay.append(np.argmax(self.__correlation[i]))
+                    minDelay = max(delay)
+                    delays = []
+                    for i in delay:
+                        delays.append(minDelay - i)
+                for i in delays:
+                    # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
+                    print(str(((i / self.__samplerate)) * 343) + "m")
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
 
 
-    def __calculate(self,show: bool = True) -> None:
+    def __calculate(self,show: bool = True, t0: int = None) -> None:
         self.__auto_cross_correlate()
         self.__location_values = []
         delay_index = []
         delay = []
         try:
-            for i in range(len(self.__correlation)):
-                value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
-                delay_index.append((i,value))
-                delay.append(value)
-            if show:
-                for i in delay:
-                    print(str((i) * 343 / self.__duration) + "m")
-                    self.__distances = [x * 343 / self.__duration for x in delay]
+            if t0 != None:
+                for i in range(len(self.__correlation)):
+                    value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
+                    delay_index.append((i,value))
+                    delay.append(value)
+                if show:
+                    for i in delay:
+                        print(str((i) * 343 / self.__duration) + "m")
+                        self.__distances = [x * 343 / self.__duration for x in delay]
+                else:
+                    self.__distances = [x*343/self.__duration for x in delay]
             else:
-                self.__distances = [x*343/self.__duration for x in delay]
+                # t0 is set to the speaker, who gets a signal first
+                for i in range(len(self.__correlation)):
+                    delay_index.append((i, np.argmax(self.__correlation[i])))
+                    delay.append(np.argmax(self.__correlation[i]))
+                    minDelay = max(delay)
+                    delays = []
+                    for i in delay:
+                        delays.append(minDelay - i)
+                for i in delays:
+                    # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
+                    print(str(((i / self.__samplerate)) * 343) + "m")
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
-        self.show()
 
     ############# Playback and recording ###############
 
