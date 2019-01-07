@@ -103,18 +103,46 @@ class AudioLocate:
         self.__mixed = mix
 
     ############# Fake stuff for debugging ###############
-    def fake_pos(self,x:int = 0,y: int = 0):
+    def fake_position(self, x:int = 0, y: int = 0):
         try:
             xy = [x,y]
             self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
-            self.fake_recording_pos()
+            self.fake_recording_position()
             return True
         except:
             print("No speaker locations found! Please run set_speaker_locations() before."
-                   "\n1\t2\n\n5\t6\n\n3\t4")
+                   "\n1 (0,0) \t2 (x,y)\n\n5\t6\n\n3\t4")
             return False
 
-    def fake_recording_pos(self) -> bool:
+    def fake_recording_position(self) -> bool:
+        #try:
+        delays = [int(x/343*self.__samplerate) for x in self.__distances]
+        mix = np.zeros(self.__samples)
+        i = 0
+        for source in self.__sources:
+            mix += 1 / self.__channels * np.roll(source, delays[i])
+            i += 1
+        self.__recorded = np.vstack((mix))
+
+        #    return True
+        #except:
+        #    print("Failed")
+        #    return False
+
+
+    def fake_movement(self,x1:int = 0, y1: int = 0, x2: int = 0, y2: int = 0):
+        try:
+            xy = [x1,y1]
+            x2y2 = [x2, y2]
+            self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
+            self.fake_recording_position()
+            return True
+        except:
+            print("No speaker locations found! Please run set_speaker_locations() before."
+                   "\n1 (0,0) \t2 (x,y)\n\n5\t6\n\n3\t4")
+            return False
+
+    def fake_recording_movement(self) -> bool:
         #try:
         delays = [int(x/343*self.__samplerate) for x in self.__distances]
         mix = np.zeros(self.__samples)
@@ -238,12 +266,14 @@ class AudioLocate:
                     value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
                     delay_index.append((i,value))
                     delay.append(value)
+                    self.__distances = [x / self.__duration + t0 for x in delay]
                 if show:
+                    print("With t0", t0)
                     for i in delay:
-                        print(str((i) * 343 / self.__duration) + "m")
-                        self.__distances = [x * 343 / self.__duration for x in delay]
-                else:
-                    self.__distances = [x*343/self.__duration for x in delay]
+                        print(str(i / self.__duration) + "s")
+
+
+
             else:
                 # t0 is set to the speaker, who gets a signal first
                 for i in range(len(self.__correlation)):
@@ -253,9 +283,9 @@ class AudioLocate:
                     delays = []
                     for i in delay:
                         delays.append(minDelay - i)
-                for i in delays:
-                    # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
-                    print(str(((i / self.__samplerate)) * 343) + "m")
+                if show:
+                    for i in delays:
+                        print(str(((i / self.__samplerate))) + "s")
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
 
@@ -273,10 +303,10 @@ class AudioLocate:
                     delay.append(value)
                 if show:
                     for i in delay:
-                        print(str((i) * 343 / self.__duration) + "m")
-                        self.__distances = [x * 343 / self.__duration for x in delay]
+                        print(str((i)  / self.__duration) + "s")
+                        self.__distances = [x  / self.__duration for x in delay]
                 else:
-                    self.__distances = [x*343/self.__duration for x in delay]
+                    self.__distances = [x/self.__duration for x in delay]
             else:
                 # t0 is set to the speaker, who gets a signal first
                 for i in range(len(self.__correlation)):
@@ -287,8 +317,7 @@ class AudioLocate:
                     for i in delay:
                         delays.append(minDelay - i)
                 for i in delays:
-                    # print(str(((i/self.__samplerate)+system_delta)*343)+"m")
-                    print(str(((i / self.__samplerate)) * 343) + "m")
+                    print(str(((i / self.__samplerate))) + "s")
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
 
