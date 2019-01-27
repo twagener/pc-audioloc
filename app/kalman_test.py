@@ -94,6 +94,15 @@ h.speaker_4 = (4., 0.)
 points = MerweScaledSigmaPoints(n=3, alpha=.1, beta=2., kappa=0.)
 kf = UKF(3, 4, 1, fx=f, hx=h, points=points)
 
+
+ukf = UnscentedKalmanFilter(dim_x=5, dim_z=NSpeaker, dt=Ts, hx=f_C, fx=f_Ad, points=sigmas)
+ukf.P *= 100
+ukf.R *= 1e-4
+Q = np.zeros( (5, 5) )
+Q[:4, :4] = Q_discrete_white_noise(2, Ts, block_size=2, var=10)
+ukf.Q = Q
+saver = Saver(ukf)
+
 # kf.Q[0:2, 0:2] = Q_discrete_white_noise(2, dt=dt, var=0)
 Ts = 1
 Gd = np.matrix([[Ts, 0],
