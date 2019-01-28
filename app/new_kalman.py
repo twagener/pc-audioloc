@@ -115,7 +115,7 @@ def simulate(points_t, value_count=100, plotting=False, initial_position_xy=(0, 
     if plotting:
         plt.figure(figsize=(10, 5))
         plt.plot(saver.x[:, 0], saver.x[:, 2], label='ukf')
-        plt.plot(ground_truth[:, 0], ground_truth[:, 1], label='ground truth')
+        plt.plot(ground_truth[:, 0], ground_truth[:, 1], label='track')
         plt.grid()
         plt.legend()
         plt.show()
