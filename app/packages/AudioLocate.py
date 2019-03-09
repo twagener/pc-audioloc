@@ -2,9 +2,16 @@ import time,sys
 
 from scipy import signal
 import numpy as np
+import random
 #import sympy as sp
 import sounddevice as sd
 import queue,threading
+
+import matplotlib.pyplot as plt
+from filterpy.kalman import UnscentedKalmanFilter
+from filterpy.common import Q_discrete_white_noise
+from filterpy.kalman import MerweScaledSigmaPoints, JulierSigmaPoints
+from filterpy.common import Saver
 
 class AudioLocate:
     __input_channels: int
@@ -12,8 +19,13 @@ class AudioLocate:
     __samples: int
     __duration: int
 
-    def __init__(self, channels: int = 4, samplerate: int = 44100, duration: int = 1) -> object:
-        self.__chunks = 10
+    def __init__(self, channels: int = 4, samplerate: int = 44100, duration: int = 1, initial_position_xy=(0,0), Ts=0.01) -> object:
+        self.__dtimes = list()
+        self.initial_position_xy = np.array(initial_position_xy, dtype=float)
+        self.Ts = Ts
+        self.t = 0
+        self.C = 343
+        self.__chunks = 1
         self.__output_stream = []
         self.__input_stream = []
         self.__blocksize = 2048
@@ -102,91 +114,11 @@ class AudioLocate:
             mix += 1 / self.__channels * i
         self.__mixed = mix
 
-    ############# Fake stuff for debugging ###############
-    def fake_position(self, x:int = 0, y: int = 0):
-        try:
-            xy = [x,y]
-            self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
-            self.fake_recording_position()
-            return True
-        except:
-            print("No speaker locations found! Please run set_speaker_locations() before."
-                   "\n1 (0,0) \t2 (x,y)\n\n5\t6\n\n3\t4")
-            return False
-
-    def fake_recording_position(self) -> bool:
-        #try:
-        delays = [int(x/343*self.__samplerate) for x in self.__distances]
-        mix = np.zeros(self.__samples)
-        i = 0
-        for source in self.__sources:
-            mix += 1 / self.__channels * np.roll(source, delays[i])
-            i += 1
-        self.__recorded = np.vstack((mix))
-
-        #    return True
-        #except:
-        #    print("Failed")
-        #    return False
-
-
-    def fake_movement(self,x1:int = 0, y1: int = 0, x2: int = 0, y2: int = 0):
-        try:
-            xy = [x1,y1]
-            x2y2 = [x2, y2]
-            self.__distances = np.sqrt(np.sum((self.__speaker_locations-xy)**2,axis=1))
-            self.fake_recording_position()
-            return True
-        except:
-            print("No speaker locations found! Please run set_speaker_locations() before."
-                   "\n1 (0,0) \t2 (x,y)\n\n5\t6\n\n3\t4")
-            return False
-
-    def fake_recording_movement(self) -> bool:
-        #try:
-        delays = [int(x/343*self.__samplerate) for x in self.__distances]
-        mix = np.zeros(self.__samples)
-        i = 0
-        for source in self.__sources:
-            mix += 1 / self.__channels * np.roll(source, delays[i])
-            i += 1
-        self.__recorded = np.vstack((mix))
-
-        #    return True
-        #except:
-        #    print("Failed")
-        #    return False
-
-    ### FAKE OUTPUT
-
-    @staticmethod
-    def fake_output_times(x: int = 0, y: int = 0) -> tuple:
-        t0 = 0
-        t1 = 1
-        t2 = 1
-        t3 = 1
-
-        return (t0,t1,t2,t3)
-
-
     ############# Do the math ###############
 
     def normalize(self) -> None:
         from sklearn.preprocessing import normalize
         self.__recorded = normalize(self.__recorded, axis=0, norm='max')
-
-    def auto_cross_correlate(self) -> None:
-        corr = []
-        for source in self.__sources:
-            # Pegelcheck um die "besten" Schallquellen zu finden
-
-            # crossCorrelation von original mit umgedrehten recorded
-            for i in range(self.__input_channels):
-                try:
-                    corr.append(signal.fftconvolve(source, self.__recorded[::-1].T[i], mode='same'))
-                except ValueError as err:
-                    print(err)
-        self.__correlation = corr
 
     def __auto_cross_correlate(self) -> None:
         corr = []
@@ -196,37 +128,12 @@ class AudioLocate:
             # crossCorrelation von original mit umgedrehten recorded
             for i in range(self.__input_channels):
                 try:
+                    #print("rec",self.__recorded.T[i])
                     corr.append(signal.fftconvolve(source, self.__input_stream[-1][::-1].T[i], mode='same'))
+                    #corr.append(signal.fftconvolve(source, self.__recorded.T[i], mode='same'))
                 except ValueError as err:
                     print(err)
         self.__correlation = corr
-
-    def show(self) -> None:
-        import matplotlib.pyplot as plt
-        try:
-            figure, (ax_mixed, *source_plots) = plt.subplots(self.__channels * self.__input_channels + 1, 1)
-            ax_mixed.set_title('Recorded noise')
-            ax_mixed.plot(self.__recorded)
-            counter = 0
-        except:
-            print("No recording found!")
-
-        try:
-            for i in range(self.__channels * self.__input_channels):
-                counter += 1
-                source_plots[i].set_title('Cross correlation for source channel ' + str(counter))
-                #source_plots[i].set_xlim([200000,210000])
-    #            if max(self.__correlation[i]) > self.__samples / len(self.__correlation) - max(self.__recorded) * 100:
-    #                color = 'g'
-    #            else:
-    #                color = 'r'
-                color = 'r'
-                source_plots[i].plot(np.arange(-len(self.__correlation[i]) + self.__samples,
-                                               len(self.__correlation[i])), self.__correlation[i], color)
-            figure.tight_layout()
-            figure.show()
-        except:
-            print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
     def __show(self) -> None:
         import matplotlib.pyplot as plt
@@ -242,11 +149,6 @@ class AudioLocate:
             for i in range(self.__channels * self.__input_channels):
                 counter += 1
                 source_plots[i].set_title('Cross correlation for source channel ' + str(counter))
-                #source_plots[i].set_xlim([200000,210000])
-    #            if max(self.__correlation[i]) > self.__samples / len(self.__correlation) - max(self.__recorded) * 100:
-    #                color = 'g'
-    #            else:
-    #                color = 'r'
                 color = 'r'
                 source_plots[i].plot(np.arange(-len(self.__correlation[i]) + self.__samples,
                                                len(self.__correlation[i])), self.__correlation[i], color)
@@ -255,42 +157,8 @@ class AudioLocate:
         except:
             print("No correlation data found to run show()! Please run auto_cross_correlate() before.")
 
-    def calculate(self,show: bool = False, t0: int = None) -> None:
-        self.__location_values = []
-        delay_index = []
-        delay = []
-        try:
-            if t0 != None:
-                # t0 is not included right now. but has to!
-                for i in range(len(self.__correlation)):
-                    value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
-                    delay_index.append((i,value))
-                    delay.append(value)
-                    self.__distances = [x / self.__duration + t0 for x in delay]
-                if show:
-                    print("With t0", t0)
-                    for i in delay:
-                        print(str(i / self.__duration) + "s")
 
-
-
-            else:
-                # t0 is set to the speaker, who gets a signal first
-                for i in range(len(self.__correlation)):
-                    delay_index.append((i, np.argmax(self.__correlation[i])))
-                    delay.append(np.argmax(self.__correlation[i]))
-                    minDelay = max(delay)
-                    delays = []
-                    for i in delay:
-                        delays.append(minDelay - i)
-                if show:
-                    for i in delays:
-                        print(str(((i / self.__samplerate))) + "s")
-        except TypeError:
-            print("No values to calculate()! Please run auto_cross_correlate() before.")
-
-
-    def __calculate(self,show: bool = True, t0: int = None) -> None:
+    def __calculate(self,show: bool = False, t0: int = None) -> None:
         self.__auto_cross_correlate()
         self.__location_values = []
         delay_index = []
@@ -298,26 +166,28 @@ class AudioLocate:
         try:
             if t0 != None:
                 for i in range(len(self.__correlation)):
-                    value = (self.__samplerate/2-np.argmax(self.__correlation[i]))/self.__samplerate
-                    delay_index.append((i,value))
+                    value = (self.__samplerate / 2 - np.argmax(self.__correlation[i])) / self.__samplerate
+                    delay_index.append((i, value))
                     delay.append(value)
                 if show:
                     for i in delay:
-                        print(str((i)  / self.__duration) + "s")
-                        self.__distances = [x  / self.__duration for x in delay]
+                        print(str(i / self.__duration) + "s")
+                        self.__distances = [x / self.__duration for x in delay]
                 else:
-                    self.__distances = [x/self.__duration for x in delay]
+                    self.__distances = [x / self.__duration for x in delay]
             else:
                 # t0 is set to the speaker, who gets a signal first
                 for i in range(len(self.__correlation)):
                     delay_index.append((i, np.argmax(self.__correlation[i])))
                     delay.append(np.argmax(self.__correlation[i]))
-                    minDelay = max(delay)
+                    min_delay = max(delay)
                     delays = []
-                    for i in delay:
-                        delays.append(minDelay - i)
-                for i in delays:
-                    print(str(((i / self.__samplerate))) + "s")
+                    for j in delay:
+                        delays.append(min_delay - j)
+                #for i in delays:
+                self.__distances = [x / self.__duration for x in delays]
+                self.__dtimes = [x / self.__samplerate for x in delays]
+                print("dtimes", self.__dtimes)
         except TypeError:
             print("No values to calculate()! Please run auto_cross_correlate() before.")
 
@@ -342,10 +212,10 @@ class AudioLocate:
         sd.wait()
 
     def start_audio_analyses(self):
-        self.__play_thread()
-        self.__rec_thread()
+        self._play_thread()
+        self._rec_thread()
 
-    def __rec_thread(self):
+    def _rec_thread(self):
         try:
             q = queue.Queue()
 
@@ -360,16 +230,25 @@ class AudioLocate:
                 print('#' * 80)
                 print('press Ctrl+C to stop the calculating')
                 print('#' * 80)
-                while True:
-                    print("\nCalculating...")
+                N = 100
+                for _ in range(N):
                     self.__input_stream.append(q.get())
                     self.__calculate()
+                    self.kalcalc()
+                self.print_track()
+                #while True:
+                #    print("\nCalculating...")
+                #    self.__input_stream.append(q.get())
+                #    self.__calculate()
+                #    self.kalcalc()
+
+
 
         except KeyboardInterrupt:
             sd.stop()
             print('\nRecording finished: ')
 
-    def __play_thread(self):
+    def _play_thread(self):
         try:
             """
             Playing the mixed noise in a loop
@@ -471,11 +350,27 @@ class AudioLocate:
                     positionList.append(pos)
             self.__speaker_locations = np.array(positionList)
 
+    def set_position(self,t0=1):
+        self.__calculate(t0)
+
     ##### GETTER
 
     def get_distances(self) -> list:
         try:
             return self.__distances
+        except:
+            AttributeError("No distances to return. Run calculate().")
+
+    def get_dtimes(self) -> list:
+        try:
+            self.__calculate()
+            return self.__dtimes
+        except:
+            AttributeError("No distances to return. Run calculate().")
+
+    def get_position(self) -> list:
+        try:
+            return self.__position
         except:
             AttributeError("No distances to return. Run calculate().")
 
@@ -486,6 +381,94 @@ class AudioLocate:
             AttributeError("No inputStream to return. Run calculate().")
 
 
+
+    ######
+
+    # function that returns the state x transformed by the state transistion function.
+    # dt is the time step in seconds.
+    def update(self):
+        self.t += self.Ts
+        self.update_position()
+
+    def update_position(self):
+        self.set_position(self.t)
+
+    def get_position(self):
+        return self.get_position()
+
+    def get_time(self):
+        return self.t
+
+    def measurement(self):
+        t_offset = 0.1
+        t = np.array(self.get_dtimes())
+        return t + t_offset
+
+    def init_kalman(self, plotting=False):
+        def f_fx(x, dt):
+            state_x, velocity_x, state_y, velocity_y, t0 = x
+            state_x += velocity_x * dt
+            state_y += velocity_y * dt
+            return [state_x, velocity_x, state_y, velocity_y, t0]
+
+        # Measurement function.
+        # Converts state vector x into a measurement vector of shape (dim_z).
+        def f_hx(x):
+            state_x, velocity_x, state_y, velocity_y, t0 = x
+
+            def f(speaker):
+                return float(np.sqrt((state_x - speaker[0]) ** 2 + (state_y - speaker[1]) ** 2)) / 343 + t0
+
+            # every speaker sqrt((x-x1)**2+(y-y1)**2) / 343 + t0
+            result = [f(speaker) for speaker in self.__speaker_locations]
+            return result
+
+        points = MerweScaledSigmaPoints(n=5, alpha=.1, beta=2., kappa=1.)
+        # points = JulierSigmaPoints(n=5, kappa=1)
+
+        # define ukf
+        self.ukf = UnscentedKalmanFilter(dim_x=5, dim_z=self.__channels, dt=self.Ts, hx=f_hx, fx=f_fx, points=points)
+        # covariance estimate matrix
+        self.ukf.P *= 10
+        # measurement noise matrix
+        self.ukf.R *= 1e-3
+        Q = np.zeros((5, 5))
+        Q[:4, :4] = Q_discrete_white_noise(2, self.Ts, block_size=2, var=10)
+        self.ukf.Q = Q
+        self.saver = Saver(self.ukf)
+        self.t_list = list()
+
+
+
+    def print_track(self):
+        t = np.array(self.t_list)
+        self.saver.to_array()
+        saver = self.saver
+        plt.figure(figsize=(10, 5))
+        plt.plot(saver.x[:, 0], saver.x[:, 2], label='ukf')
+        for idx, s in enumerate(self.__speaker_locations):
+            color = 'rgby'
+            plt.plot(s[0], s[1], marker='s', ms=10, color=color[idx])
+        plt.grid()
+        plt.legend()
+        plt.show()
+
+        plt.figure(figsize=(10, 5))
+        plt.plot(t, saver.x[:, 1], label='velocity_x')
+        plt.plot(t, saver.x[:, 3], label='velocity_y')
+        plt.grid()
+        plt.legend()
+        plt.show()
+
+
+    def kalcalc(self):
+        ukf_data = self.measurement()
+        print("ukf", ukf_data)
+        self.update()
+        self.ukf.predict()
+        self.ukf.update(ukf_data)
+        self.t_list.append(self.get_time())
+        self.saver.save()
 
 if __name__ == "__main__":
     test = AudioLocate(4, samples=44100)
