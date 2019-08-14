@@ -81,7 +81,8 @@ def simulate(points_t, value_count=1, plotting=False, initial_position_xy=(0, 0)
     # initialize Movement
     movement_model = MovementModel(initial_position_xy=initial_position_xy, Ts=Ts, velocity_xy=velocity_xy)
     # create model object for audio_locate()
-    loc_model = LocateModel(speaker_positions=speaker_positions, movement_model=movement_model, t_offset=0.1)
+    loc_model = LocateModel(speaker_positions=speaker_positions, movement_model=movement_model,
+                            t_offset=0.0)
 
     # define ukf
     ukf = UnscentedKalmanFilter(dim_x=5, dim_z=channels, dt=Ts, hx=f_hx, fx=f_fx, points=points)
@@ -101,6 +102,7 @@ def simulate(points_t, value_count=1, plotting=False, initial_position_xy=(0, 0)
     ground_truth = list()
     for n in range(values):
         ukf_data = loc_model.noisy_measurement(points_t=points_t)
+        print(ukf_data, ukf.x)
         #ukf_data = loc_model.measurement()
         loc_model.update()
         ukf.predict()
@@ -128,7 +130,7 @@ def simulate(points_t, value_count=1, plotting=False, initial_position_xy=(0, 0)
         plt.plot(t, saver.x[:,3], label='velocity_y')
         plt.grid()
         plt.legend()
-        plt.show()
+#        plt.show()
 
     else:
         pass
@@ -140,5 +142,6 @@ points = MerweScaledSigmaPoints(n=5, alpha=.1, beta=2., kappa=1.)
 #points = JulierSigmaPoints(n=5, kappa=1)
 
 speaker_positions = np.array([[-4, -2], [-4, 2], [4, 2], [4, -2], [-3, 1], [2, -1]])
+
 channels = len(speaker_positions)
-simulate(points_t=1e-3, value_count=1000, plotting=True, initial_position_xy=(-2, -1), velocity_xy=(0.2, 0.2))
+simulate(points_t=1e-3, value_count=100, plotting=True, initial_position_xy=(0, 0), velocity_xy=(0.2, 0.2))
